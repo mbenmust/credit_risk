@@ -1,0 +1,1501 @@
+---
+title: "Credit Risk in Germany"
+output:
+  html_document:
+    toc: true
+    toc_float: true 
+    toc_depth: 3
+    code_folding: hide 
+    theme: journal 
+    highlight : tango 
+author: "Arnaud Bertrand, Meriem Ben Mustapha ,Efthimis Katsiapis"
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo=FALSE) 
+```
+
+
+# **1.Business understanding**
+
+
+Credit risk assessment has always been crucial for ensuring stability and profitability in banking sector.We have therefore decided to work on a german dataset aiming to preduict if a new applicant will be rated as good or bad credit rating.
+
+Our machine learning project aims to predict the credit risk (good or bad) of our customers in the banking sector. Our goal is to identify the most important variables and determine the best machine learning model in order to achieve the most accurate predictions. 
+
+Through the analysis of historical data, we will uncover key variables that influence credit risk and compare the performance of different machine learning models to identify the most accurate predictors.
+
+
+
+
+```{r}
+# Sorted library loading statements
+library(Boruta)
+library(car)
+library(caret)
+library(DALEX)
+library(DataExplorer)
+library(DT)
+library(explore)
+library(fable)
+library(fastDummies)
+library(fpp3)
+library(ggcorrplot)
+library(ggplot2)
+library(Hmisc)
+library(iml)
+library(kableExtra)
+library(knitr)
+library(lattice)
+library(likert)
+library(mice)
+library(pander)
+library(plotly)
+library(pROC)
+library(randomForest)
+library(rattle)
+library(rpart)
+library(rpart.plot)
+library(reshape2)
+library(rpart)
+library(skimr)
+library(tsibble)
+library(VIM)
+library(xgboost)
+```
+
+```{r}
+#read dataset 
+credit_data <- read.csv("~/Desktop/MsM_Semestre02/Projects/Project/GermanCredit.csv",sep=";")
+```
+
+
+```{r}
+#Variables description
+Variable <-  c("OBS",
+               "CHK_ACCT",
+               "DURATION",
+               "HISTORY",
+               "NEW_CAR",
+               "USED_CAR",
+               "FURNITURE",
+               "RADIO/TV",
+               "EDUCATION",
+               "RETRAINING",
+               "AMOUNT",
+               "SAV_ACCT",
+               "EMPLOYMENT",
+               "INSTALL_RATE",
+               "MALE_DIV",
+               "MALE_SINGLE",
+               "MALE_MAR_or_WID",
+               "CO.APPLICANT",
+               "GUARANTOR",
+               "PRESENT_RESIDENT",
+               "REAL_ESTATE",
+               "PROP_UNKN_NONE",
+               "AGE",
+               "OTHER_INSTALL",
+               "RENT",
+               "OWN_RES",
+               "NUM_CREDITS",
+               "JOB",
+               "NUM_DEPENDENTS",
+               "TELEPHONE",
+               "FOREIGN",
+               "RESPONSE")
+
+Variable_Description <- c("The observation number",
+                 "Checking account status",
+                 "Duration of credit in months",
+                 "Credit history", 
+                 "Purpose of credit",
+                 "Purpose of credit",
+                 "Purpose of credit",
+                 "Purpose of credit",
+                 "Purpose of credit",
+                 "Purpose of credit",
+                 "Credit amount",
+                 "Average balance in savings account",
+                 "Present employment since",
+                 "Installment rate as % of disposable income",
+                 "Applicant is male and divorced",
+                 "Applicant is male and single",
+                 "Applicant is male and married or a widower",
+                 "Application has a co-applicant",
+                 "Applicant has a guarantor",
+                 "Present resident since - years",
+                 "Applicant owns real estate",
+                 "Applicant owns no property",
+                 "Age in years",
+                 "Applicant has other installment",
+                 "Applicant rents",
+                 "Applicant owns residence",
+                 "Number of existing credits at this bank",
+                 "Nature of job",
+                 "Number of people for whom liable to provide maintenance",
+                 "Applicant has phone in his/her name",
+                 "Foreign worker",
+                 "credit rating is good (Yes/No")
+
+Variable_Type <-  c("Categorical",
+                    "Categorical",
+                    "Numerical",
+                    "Categorical",
+                    "Binary",
+                    "Binary",
+                    "Binary",
+                    "Binary",
+                    "Binary",
+                    "Binary",
+                    "Numerical",
+                    "Categorical",
+                    "Categorical",
+                    "Numerical",
+                    "Binary",
+                    "Binary",
+                    "Binary",
+                    "Binary",
+                    "Binary",
+                    "Categorical",
+                    "Binary",
+                    "Binary",
+                    "Numerical",
+                    "Binary",
+                    "Binary",
+                    "Binary",
+                    "Numerical",
+                    "Categorical",
+                    "Numerical",
+                    "Binary",
+                    "Binary",
+                    "Binary")
+
+
+
+data.frame(Variable,Variable_Description,Variable_Type) %>% 
+  kbl(align = "l") %>% 
+  kable_classic(c("hover", "condense"))
+
+```
+
+
+# **2.Data understanding and preparation**
+
+### **2.1 EDA**
+
+:::{style="text-align: justify"}
+
+The exploratory data analysis is the starting point of our project , it will allow us  to investigate our data in order to spot missing values , outliers or any other values that should be modified. We will also check the distribution of our variables and balance the data in order to have a prepared and ready dataset for the analysis 
+
+Our data set is composed of 1000 observations, aswell as 31 predictor variables and one target variable called Response.
+
+:::
+
+#### **2.1.1 Underlying structure**
+
+
+:::{style="text-align: justify"}
+
+The first thing we have done is change all categorical and binary variables to factors. This will allow us to show R that our variables are not numeric but that each number represents a category and that 1 is not greater than 0 but represents another category. 
+
+:::
+
+```{r}
+# select the columns to convert to categorical
+cat_cols <- names(credit_data)[!(1:ncol(credit_data) %in% c(3,11,14,23,27,29))]
+
+# convert to categorical
+credit_data <- credit_data %>% 
+  mutate_at(all_of(cat_cols), as.factor)
+
+variable_types <- sapply(credit_data, class)
+print(variable_types)
+```
+
+```{r}
+#Underlying structure 
+skim(credit_data)
+```
+
+
+:::{style="text-align: justify"}
+
+This summary about our data helps us better understand our variables by getting information of the number of occurencies in every category , the maximum value , the minimum value and the missing values. 
+
+:::
+
+#### **2.1.2 Detecting anomalies**
+
+
+
+```{r}
+pander(summary(credit_data))
+```
+
+:::{style="text-align: justify"}
+By closely investigating this table, we have detected the following anomalies in our dataset :
+
+• Minimum value of duration is -6 , we have to modify the negative values 
+• Guarantor values start at -1 while it should be 0 or 1 
+• Maximum value of Age is 151 , an unrealistic number 
+• Maximum value of male_single is 2 whereas it should be 0 or 1 
+
+:::
+```{r}
+#Data Rectification 
+credit_data$GUARANTOR <- ifelse(credit_data$GUARANTOR == -1, 0, credit_data$GUARANTOR)
+credit_data$DURATION <- ifelse(credit_data$DURATION == -6 ,6,credit_data$DURATION)
+credit_data$AGE <-  ifelse(credit_data$AGE== 151 ,51,credit_data$AGE)
+credit_data$MALE_SINGLE <-  ifelse(credit_data$MALE_SINGLE== 2 ,1,credit_data$MALE_SINGLE)
+```
+
+:::{style="text-align: justify"}
+Dealing with anomalies is crucial as if not dealt with, they could fake our results.
+:::
+
+#### **2.1.3 Missing values**
+
+```{r}
+#missing values 
+sum(is.na(credit_data))
+```
+
+
+```{r}
+#plotting missing values 
+aggr(credit_data, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(credit_data), cex.axis=.7, gap=3, ylab=c("Histogram of missing values","Pattern"))
+```
+:::{style="text-align: justify"}
+We  notice that our dataset is only composed of 14 missing values which is a very small proportion of our dataset. We have therefore decided to delete them as we wouldnt lose too many information. 
+:::
+
+```{r}
+#removing missing values 
+credit_data <- na.omit(credit_data)
+```
+
+
+#### **2.1.4 Data balance analysis**
+
+:::{style="text-align: justify"}
+Now moving on, we want to learn a little bit more about our all variables starting with the target variable, the Response variable
+:::
+
+```{r}
+prop_response <- table(credit_data$RESPONSE) / nrow(credit_data)
+bar_colors <- c("light blue", "light green")
+
+ylim_vals <- c(0, 1)
+
+#plot the barplot with adjusted y-axis scale
+barplot(prop_response, main = "Credit Rating", xlab = "", ylab = "Proportion",
+        col = bar_colors, ylim = ylim_vals)
+
+prop_labels <- paste0(round(prop_response, 2) * 100, "%")
+text(x = 1:length(prop_response), y = prop_response, labels = prop_labels, pos = 3)
+
+
+```
+
+:::{style="text-align: justify"}
+We notice that 70% of observations have a "1" value indicating that the customer was given a good credit risk. The rest is therefore observations of clients that were categorized as "bad" credit risk. Here we already take away that our data is largely unbalanced and that we will have to balance it (have 50% of 0 and 50% of 1) in the training dataset that will be used by the different models.
+:::
+
+##### Categorical variables
+
+:::{style="text-align: justify"}
+We will now have a look at all our categorical variables, in order to have a first idea about their predicting power.
+:::
+
+```{r}
+
+credit_data %>%
+  select(CHK_ACCT,HISTORY,SAV_ACCT,EMPLOYMENT,PRESENT_RESIDENT,JOB,RESPONSE) %>%
+  explore_all(target = RESPONSE)
+```
+
+
+```{r}
+credit_data %>%
+  select(INSTALL_RATE,NUM_CREDITS,NUM_DEPENDENTS,RESPONSE) %>%
+  explore_all(target = RESPONSE)
+```
+
+:::{style="text-align: justify"}
+These barplots display the distribution of the response variable for every categorical variable. This is useful to already know if certain categories make a big impact on the response variable. For example the level 3 of CHK Account shows that for all people that were given a positive rating 50 % of them where in the third category
+:::
+
+##### Numerical variables 
+
+
+
+```{r}
+ggplot(credit_data, aes(x = as.factor(RESPONSE), y = AMOUNT)) +
+  geom_boxplot() +
+  stat_summary(fun.y = median, geom = "point", shape = 18, size = 3, color = "red") +
+  stat_summary(fun.y = median, geom = "text", aes(label = round(..y.., 2)), vjust = -1) +
+  stat_summary(fun.y = max, geom = "text", aes(label = round(..y.., 2)), vjust = 1.5, color = "blue") +
+  labs(x = "Response", y = "Credit Amount") +
+  scale_x_discrete(labels = c("Bad", "Good"))
+
+```
+
+:::{style="text-align: justify"}
+For the AMOUNT variable,we see that the average client that is categorised as a good credit risk, demands on average a smaller amount relative to the clients categorized as bad. We also see that, by looking at the boxplot, there are very few clients that ask for very high credit amount who are categorized as a good credit risk, which makes sense and is  showing that the bank seems to prefer lower amounts.
+:::
+
+```{r}
+ggplot(credit_data, aes(x = as.factor(RESPONSE), y = AGE)) +
+  geom_boxplot() +
+  stat_summary(fun.y = median, geom = "point", shape = 18, size = 3, color = "red") +
+  stat_summary(fun.y = median, geom = "text", aes(label = round(..y.., 2)), vjust = -1) +
+  stat_summary(fun.y = max, geom = "text", aes(label = round(..y.., 2)), vjust = 1.5, color = "blue") +
+  labs(x = "Response", y = "Clinets age") +
+  scale_x_discrete(labels = c("Bad", "Good"))
+```
+
+:::{style="text-align: justify"}
+Concerning the age, we see that there is a tendency for slightly older clients to receive a "Good" rating. 
+:::
+
+
+```{r}
+ggplot(credit_data, aes(x = as.factor(RESPONSE), y = DURATION)) +
+  geom_boxplot() +
+  stat_summary(fun.y = median, geom = "point", shape = 18, size = 3, color = "red") +
+  stat_summary(fun.y = median, geom = "text", aes(label = round(..y.., 2)), vjust = -1) +
+  stat_summary(fun.y = max, geom = "text", aes(label = round(..y.., 2)), vjust = 1.5, color = "blue") +
+  labs(x = "Response", y = "Credit Duration") +
+  scale_x_discrete(labels = c("Bad", "Good"))
+
+```
+
+:::{style="text-align: justify"}
+Concerning the duration Variable, we see that people who recieved a good response, demanded a shorter credit on average.
+
+The goal of the exploratory data analysis is to gather as many information as possible about our data set and variables, in order to have a first overview and first ideas about how the Response variable behave.
+:::
+
+
+### **2.2 Data modification**
+
+
+
+```{r}
+par(mfrow = c(1, 3))
+hist(credit_data$AGE,col = "light green" ,xlab = "Age", ylab = "Frequency")
+hist(credit_data$DURATION, col = "light green", xlab = "Duration", ylab = "Frequency")
+hist(credit_data$AMOUNT,col = "light green", xlab = "Amount", ylab = "Frequency")
+```
+
+:::{style="text-align: justify"}
+After analyzing the distribution of our numerical variables,we noticed that the following variables : AGE, DURATION and AMOUNT were left-skewed. We therefore decided to normalize the distribution of these variables and then scale it in order to have similar scales for all our variables. 
+:::
+
+
+```{r}
+#first we tried to scale the data to normalize them 
+credit_data <- credit_data %>% mutate(LogAge = log(credit_data$AGE),
+                    LogAmount = log(credit_data$AMOUNT), 
+                    LogDuration = log(credit_data$DURATION))
+
+#scaling to get values with mean = 0 
+credit_data$AGE_SCALED <- scale(credit_data$LogAge)
+credit_data$AMOUNT_SCALED <- scale(credit_data$LogAmount)
+credit_data$DURATION_SCALED <- scale(credit_data$LogDuration)
+
+
+credit_data <- credit_data %>% select(-AGE, -AMOUNT, -OBS., -DURATION, -LogAge, -LogAmount, -LogDuration)
+```
+
+
+```{r}
+par(mfrow = c(1, 3))
+hist(credit_data$AGE_SCALED, col = "light green", xlab = "Age", ylab = "Frequency")
+hist(credit_data$DURATION_SCALED, col = "light green", xlab = "Duration", ylab = "Frequency")
+hist(credit_data$AMOUNT_SCALED, col = "light green", xlab = "Amount", ylab = "Frequency")
+```
+
+
+
+# **3.Modelling**
+
+:::{style="text-align: justify"}
+We will now get to the modelling part, which will be key to determine the best performing models on our dataset.
+:::
+
+```{r}
+#confusion matrix function creation
+draw_confusion_matrix <- function(cm) {
+
+  layout(matrix(c(1,1,2)))
+  par(mar=c(2,2,2,2))
+  plot(c(100, 345), c(300, 450), type = "n", xlab="", ylab="", xaxt='n', yaxt='n')
+  title('CONFUSION MATRIX', cex.main=2)
+
+  # create the matrix 
+  rect(150, 430, 240, 370, col='#3F97D0')
+  text(195, 435, 'Class1', cex=1.2)
+  rect(250, 430, 340, 370, col='#F7AD50')
+  text(295, 435, 'Class2', cex=1.2)
+  text(125, 370, 'Predicted', cex=1.3, srt=90, font=2)
+  text(245, 450, 'Actual', cex=1.3, font=2)
+  rect(150, 305, 240, 365, col='#F7AD50')
+  rect(250, 305, 340, 365, col='#3F97D0')
+  text(140, 400, 'Class1', cex=1.2, srt=90)
+  text(140, 335, 'Class2', cex=1.2, srt=90)
+
+  # add in the cm results 
+  res <- as.numeric(cm$table)
+  text(195, 400, res[1], cex=1.6, font=2, col='white')
+  text(195, 335, res[2], cex=1.6, font=2, col='white')
+  text(295, 400, res[3], cex=1.6, font=2, col='white')
+  text(295, 335, res[4], cex=1.6, font=2, col='white')
+ # add in the specifics 
+  plot(c(100, 0), c(100, 0), type = "n", xlab="", ylab="", main = "DETAILS", xaxt='n', yaxt='n')
+  text(10, 85, names(cm$byClass[1]), cex=1.2, font=2)
+  text(10, 70, round(as.numeric(cm$byClass[1]), 3), cex=1.2)
+  text(30, 85, names(cm$byClass[2]), cex=1.2, font=2)
+  text(30, 70, round(as.numeric(cm$byClass[2]), 3), cex=1.2)
+  text(50, 85, names(cm$byClass[5]), cex=1.2, font=2)
+  text(50, 70, round(as.numeric(cm$byClass[5]), 3), cex=1.2)
+  text(70, 85, names(cm$byClass[6]), cex=1.2, font=2)
+  text(70, 70, round(as.numeric(cm$byClass[6]), 3), cex=1.2)
+  text(90, 85, names(cm$byClass[7]), cex=1.2, font=2)
+  text(90, 70, round(as.numeric(cm$byClass[7]), 3), cex=1.2)
+
+  # add in the accuracy information 
+  text(30, 35, names(cm$overall[1]), cex=1.5, font=2)
+  text(30, 20, round(as.numeric(cm$overall[1]), 3), cex=1.4)
+  text(70, 35, names(cm$overall[2]), cex=1.5, font=2)
+  text(70, 20, round(as.numeric(cm$overall[2]), 3), cex=1.4)
+}  
+
+```
+
+
+## **3.1 Data splitting**
+
+```{r}
+set.seed(234)
+index <- sample(x=c(1,2), size=nrow(credit_data), replace=TRUE, prob=c(0.75,0.25)) # 1==training set, 2==test set
+df_tr_credit <- credit_data[index==1,]
+df_te_credit <- credit_data[index==2,]
+```
+
+:::{style="text-align: justify"}
+Before starting the modelling part, we have  done some last adjustments in order to have a ready dataset for analysis. Indeed, we have decided to first log transform all the numerical variables (AGE,DURATION, AMOUNT)and then to scale them, as we have noticed that some models such as neural network require these changes.
+After that, we divided our dataset into a training (75% of our data) and test set (25% of our data) in order to train and test the performance of our models.
+:::
+
+## **3.2 Data Balancing**
+
+:::{style="text-align: justify"}
+As we saw above , our data is unbalanced, we have more instances predicting a good credit rating than bad ones.Even though sub-sampling reduces the amount of information (reducing the number of good credit rating data in our case) available for our model,we will use this method in order to reduce the  risk of overfitting and potentially introducing bias due to the replication of instances.
+:::
+
+```{r}
+
+n_bad <- min(table(df_tr_credit$RESPONSE)) #find the minimum count of occurrences for the variable
+
+df_tr_bad <- filter(df_tr_credit, RESPONSE==0)
+df_tr_good <- filter(df_tr_credit, RESPONSE==1)
+
+index_good <- sample(size=n_bad, x=1:nrow(df_tr_good), replace=FALSE) ## sub-sample  instances from the "good"
+
+df_tr_subs <- data.frame(rbind(df_tr_good[index_good,],df_tr_bad)) ## Bind all the "Yes" and the sub-sampled "No"
+
+table(df_tr_subs$RESPONSE) %>% kable(align = "c", col.names = c("Variable", "Frequence"))
+```
+
+:::{style="text-align: justify"}
+After having proceeded with the data balancing, we observe that our training set contains the same amount of good and bad credit risks and is therefore ready for training.
+:::
+
+## **3.3 Model fitting**{.tabset.tabset.fade.tabset-pills}
+
+:::{style="text-align: justify"}
+Here is the list of our models 
+
+-Logistic regression 
+-KNN 
+-SVM 
+-Neural Network
+-Linear discriminant analysis
+-Random forest 
+-Decision tree 
+-XGBoosting 
+:::
+
+```{r}
+#cross validation
+train_control <- trainControl(method = "cv", number = 6)
+metric <- "Accuracy"
+```
+
+:::{style="text-align: justify"}
+After having splitted our data, we specify that we want to use cross validation for our training set by splitting the data into 6 random folds. We decided to do that, as it is important to try and reduce the impact of using one specific training set and help us having more accurate results.
+:::
+
+### **3.3.1 Logistic regression** {.tabset.tabset.fade}
+
+:::{style="text-align: justify"}
+The first model we analyze is a logistic regression. In order to find the best performing model, we have use a step approach, a method that will allow the model to come up with the model (set of variables), that is minimizing the AIC and therefore maximizing the performance.
+:::
+
+```{r,echo=FALSE,results='hide'}
+
+fit_glm_AIC = train(
+  form = RESPONSE ~ .,
+  data = df_tr_subs,
+  trControl = train_control,
+  method = "glmStepAIC",
+  metric = metric,
+  family = "binomial"
+)
+
+```
+
+:::{style="text-align: justify"}
+The final output gives us a model with 21 variables. Please note, that as we have transformed our variables into factors, we have a specific variable for every level of every categorical variable. This allows to know with more precision what levels of variables, really impact the prediction.
+:::
+
+
+##### **3.3.1.1 VIF and PVAL analysis ** 
+
+```{r}
+pval_star <- function(pval) {
+  ifelse(pval < 0.001, "***",
+    ifelse(pval < 0.01, "**",
+      ifelse(pval < 0.05, "*", " ")))
+}
+
+pvalues<- fit_glm_AIC$finalModel
+pvalues %>% tidy() %>%
+  select(-statistic) %>%
+  mutate(p.value = paste(round(p.value, 4), pval_star(p.value))) %>%
+  kable(digits = 3,
+    col.names = c("Parameter", "Estimate", "Standard Error", "P.value")
+  ) %>%
+  kable_styling(bootstrap_options = "striped")
+
+
+vif(pvalues) %>% kable(col.names = "VIF Coefficient") %>%  kable_styling(bootstrap_options = "striped")
+```
+
+:::{style="text-align: justify"}
+By analyzing the p-values of our model , we can see that some levels of the variables chosen through the AIC selection are more significant than others, such as : CHK_ACCOUNT2 ,CHK_ACCOUNT3, EMPLOYMENT3, NEW_CAR1 , SAV_ACCT4,DURATION_SCALED, MALE_SINGLE, INSTALL_RATA ,HISTORY4 
+
+Regarding the VIF analysis, all VIF coefficients are lower than 5, there is therefore no multicolinearity between our variables. 
+:::
+
+```{r}
+pred_glm_aic <- predict(fit_glm_AIC, newdata = df_te_credit)
+cm_glm_aic <- confusionMatrix(data = pred_glm_aic, reference = df_te_credit$RESPONSE)
+draw_confusion_matrix(cm_glm_aic)
+```
+
+:::{style="text-align: justify"}
+After having trained our model, we will use it to make predictions on our test set (new data) in order to judge its accuracy, as well as the specificity and sensitivity in the confusion matrix. In this case we have an accuracy of 0.752 and a very high sensitivity which is very important for the bank as predicting a good rating, while it is in reality bad, could be very costly for the bank.
+:::
+
+
+##### **3.3.1.2 ROC metric **
+
+```{r}
+#ROC curve Logistic regression
+
+pred_glm_aicROC <- predict(fit_glm_AIC, newdata = df_te_credit,type ="prob")
+
+
+prev.prob<-data.frame(Logistic =pred_glm_aicROC[,2] , 
+                      obs=df_te_credit$RESPONSE)
+
+prev.prob <- data.frame(Logistic = pred_glm_aicROC[, 2], obs = df_te_credit$RESPONSE)
+
+# Reorder the levels of the response variable
+prev.prob$obs <- factor(prev.prob$obs, levels = c("1", "0"))
+
+# Draw ROC curve
+roc_obj <- roc(prev.prob$obs, prev.prob$Logistic)
+
+# Plot the ROC curve
+par(pty="s")
+plot(roc_obj, main = "ROC Curve", print.auc = TRUE)
+
+```
+
+:::{style="text-align: justify"}
+We then plot the ROC curve, in order to see the tradeoff between sensitivity and specificity. We also calculate the area under the curve (AUC) which will be useful to compare the different models. 
+:::
+
+### **3.3.2 KNN** 
+
+:::{style="text-align: justify"}
+For the k-nearest neighbors model, we have decided to create a grid of values for our tuning parameter k within a range between 1 and 100 with a step of 1.The model performance will be evaluated for every k using cross validation.The value of k that yields the best performance will then be selected.
+:::
+
+```{r , echo=FALSE}
+#KNN
+
+set.seed(100)
+
+fit_knn_tuned = train(
+  RESPONSE ~ .,
+  data = df_tr_subs,
+  method = "knn",
+  metric = metric,
+  trControl = train_control,
+  tuneGrid = expand.grid(k = seq(1, 100, by = 1))
+)
+
+plot(fit_knn_tuned)
+```
+
+```{r}
+best_k <- fit_knn_tuned$bestTune$k
+paste("The best performance is reached with", best_k,"neighbors") %>% kable(col.names = NULL, align="l")
+```
+
+```{r}
+pred_knn <- predict(fit_knn_tuned, newdata = df_te_credit)
+cm_knn<- confusionMatrix(data = pred_knn, reference = df_te_credit$RESPONSE)
+draw_confusion_matrix(cm_knn)
+```
+
+:::{style="text-align: justify"}
+Once again, we plot the confusion matrix and see that the accuracy and specificity are significantly lower than for the logistic regression which could indicate that the model isn't performing as well.
+:::
+
+
+#### **3.3.2.1 ROC curve**
+
+```{r}
+
+#ROC curve KNN
+pred_knnROC <- predict(fit_knn_tuned, newdata = df_te_credit,type ="prob")
+
+
+prev.prob<-data.frame(Logistic =pred_knnROC[,2] , 
+                      obs=df_te_credit$RESPONSE)
+
+prev.prob <- data.frame(Logistic = pred_knnROC[, 2], obs = df_te_credit$RESPONSE)
+
+# Draw ROC curve
+roc_obj <- roc(prev.prob$obs, prev.prob$Logistic)
+
+# Plot the ROC curve
+par(pty="s")
+plot(roc_obj, main = "ROC Curve", print.auc = TRUE)
+```
+
+:::{style="text-align: justify"}
+We then also plot the ROC curve and get an AUC of 0.730.
+:::
+
+### **3.3.3 Support Vector Machine **
+
+:::{style="text-align: justify"}
+Regarding the tuning parameter, the cost parameter takes values between 0.01 and 100 on a logarithmic scale. The model will then choose the optimal values that maximizes the performance.
+:::
+
+```{r}
+
+hp_svm <- expand.grid(cost = 10 ^ ((-2):1))
+
+set.seed(567)
+fit_svm <- train(
+  form = RESPONSE ~ .,
+  data = df_tr_subs,
+  trControl = train_control,
+  tuneGrid = hp_svm,
+  method = "svmLinear2",
+  metric = metric,
+  probability = TRUE
+)
+
+```
+
+
+```{r}
+#Grid search results
+C <- fit_svm$finalModel$cost
+paste("The optimal cost for our model is", C) %>% kable(col.names = NULL, align="l")
+```
+
+
+```{r}
+#Visualizing the SVM model's decision
+plot(fit_svm)
+```
+
+
+```{r}
+#Analyzing the SVM results 
+summary(fit_svm)
+```
+
+:::{style="text-align: justify"}
+As we can see ,there are a total of 340 support vectors (data points liying closest to the decision boundary) , consisting of 169 from class 0 and 171 from class 1.
+The model considers instances from both classes when determining the separation.
+:::
+
+```{r}
+pred_svm <- predict(fit_svm, newdata = df_te_credit)
+pred_svm <- factor(pred_svm, levels = levels(df_tr_subs$RESPONSE))
+reference <- factor(df_te_credit$RESPONSE, levels = levels(df_tr_subs$RESPONSE))
+cm_svm <- confusionMatrix(data = pred_svm, reference = reference)
+draw_confusion_matrix(cm_svm)
+```
+
+:::{style="text-align: justify"}
+We now build the confusion matrix and get an accuracy of 0.704 and a specificity of 0.699.
+:::
+
+#### **3.3.3.1 ROC metric **
+
+```{r}
+#ROC curve for SVM 
+probabilities <- predict(fit_svm, newdata = df_te_credit,type ="prob")[,2]
+
+# Draw ROC curve
+roc_obj <- roc(reference, probabilities)
+
+# Plot the ROC curve
+par(pty="s")
+plot(roc_obj, main = "ROC Curve", print.auc = TRUE)
+```
+
+:::{style="text-align: justify"}
+We then once again plotted the ROC curve and calculated the AUC, which will be useful to compare all our different models.
+:::
+
+### **3.3.4 Neural Network** 
+
+:::{style="text-align: justify"}
+The next model we will fit is a neural network.
+In order to hyper tune our model, we created a grid of hyperparameters hyperparameter will take values between 2 and 10, and the decay parameter to vary between 0 and 0.5 with a step size of 0.05.
+::: 
+
+```{r,echo=FALSE,results='hide'}
+hp_nn <- expand.grid(size = 2:10,
+                     decay = seq(0, 0.5, 0.05))
+set.seed(2006)
+fit_nn <- train(
+  form = RESPONSE ~ .,
+  data = df_tr_subs,
+  trControl = train_control,
+  tuneGrid = hp_nn,
+  method = "nnet",
+  metric = metric, 
+  verbose=F)
+```
+
+```{r}
+#Grid search results
+S <- fit_nn$bestTune$size
+paste("The optimal size of the hidden layer for our model is",S) %>% kable(col.names = NULL, align="l")
+```
+
+
+```{r}
+#Grid search results
+D <- fit_nn$finalModel$decay
+paste("The optimal value of the decay parameter for our model is", D) %>% kable(col.names = NULL, align="l")
+```
+
+
+```{r}
+NeuralNetTools::plotnet(fit_nn, pos_col = "darkgreen", neg_col = "darkblue")
+```
+
+```{r}
+pred_nn <- predict(fit_nn, newdata = df_te_credit)
+cm_nn <- confusionMatrix(data = pred_nn, reference = df_te_credit$RESPONSE)
+draw_confusion_matrix(cm_nn)
+```
+
+
+#### **3.3.4.1 ROC metric **
+
+```{r}
+pred_nnROC <- predict(fit_nn, newdata = df_te_credit,type ="prob")
+
+
+prev.prob<-data.frame(Logistic =pred_nnROC[,2] , 
+                      obs=df_te_credit$RESPONSE)
+
+prev.prob <- data.frame(Logistic = pred_nnROC[, 2], obs = df_te_credit$RESPONSE)
+
+# Draw ROC curve
+roc_obj <- roc(prev.prob$obs, prev.prob$Logistic)
+
+# Plot the ROC curve
+par(pty="s")
+plot(roc_obj, main = "ROC Curve", print.auc = TRUE)
+```
+
+:::{style="text-align: justify"}
+After hypertuning the neural network,we get an accuracy of 0.751 as well as the ROC curve representing an AUC of 0.751. Those values will be useful when comparing the performance of the different models to determine the best one.
+:::
+
+### **3.3.5 Linear Discriminant Analysis** {.tabset.tabset.fade}
+
+:::{style="text-align: justify"}
+Now moving on to the next model, we are trying to fit a Linear Discriminant Analysis, where no tuning is required.
+::: 
+
+```{r}
+set.seed(100)
+fit_lda <- train(RESPONSE ~ .,
+                 data = df_tr_subs,
+                 method = "lda",
+                 metric = metric,
+                 trControl = train_control)
+```
+
+```{r}
+summary(fit_lda)
+```
+
+
+```{r}
+pred_lda <- predict(fit_lda, newdata = df_te_credit)
+cm_lda <- confusionMatrix(data = pred_lda, reference = df_te_credit$RESPONSE)
+draw_confusion_matrix(cm_lda)
+```
+
+:::{style="text-align: justify"}
+The linear discriminant analysis  model shows an accuracy of 0.739 and a specificity of 0.756 which is higher than the models above. 
+:::
+
+#### **3.3.5.1 ROC metric **
+
+```{r}
+#ROC Curve
+pred_ldaROC <- predict(fit_lda, newdata = df_te_credit,type ="prob")
+
+
+prev.prob<-data.frame(Logistic =pred_ldaROC[,2] , 
+                      obs=df_te_credit$RESPONSE)
+
+prev.prob <- data.frame(Logistic = pred_ldaROC[, 2], obs = df_te_credit$RESPONSE)
+
+
+# Draw ROC curve
+roc_obj <- roc(prev.prob$obs, prev.prob$Logistic)
+
+# Plot the ROC curve
+par(pty="s")
+plot(roc_obj, main = "ROC Curve", print.auc = TRUE)
+```
+
+:::{style="text-align: justify"}
+The AUC is once again pretty close to best highest performing models around 0.8.
+:::
+### **3.3.6 Random Forest**
+
+:::{style="text-align: justify"}
+Moving on to the random forest, we want to find the optimal mtry from 2 to 10.
+:::
+
+```{r}
+#Random forest 
+
+hp_rf <- expand.grid(mtry = c(2, 4, 6, 8, 10))
+set.seed(453)
+
+fit_rf <- train(
+  RESPONSE ~ .,
+  data = df_tr_subs,
+  method = 'rf',
+  metric = metric,
+  trControl = train_control,
+  tuneGrid = hp_rf
+)
+
+```
+
+```{r}
+print(fit_rf)
+#data is divided into 6 fold cross validation
+```
+
+```{r}
+plot(fit_rf)
+```
+
+```{r}
+#Optimal number of trees 
+ntree <- fit_rf$finalModel$mtry
+paste("Our random forest model is composed by", ntree, "trees") %>% kable(col.names = NULL, align="l")
+```
+
+```{r}
+pred_rf <- predict(fit_rf, newdata = df_te_credit)
+cmrf <- confusionMatrix(data = pred_rf, reference = df_te_credit$RESPONSE)
+draw_confusion_matrix(cmrf)
+```
+
+:::{style="text-align: justify"}
+
+We plot the confusion matrix and see that the performance metrics show us that the random forest does not seem to be the best to explain our data.
+:::
+
+#### **3.3.6.1 ROC metric **
+
+```{r}
+#ROC Curve random forest 
+pred_rfROC <- predict(fit_rf, newdata = df_te_credit,type ="prob")
+
+
+prev.prob<-data.frame(FOREST =pred_rfROC[,2] , 
+                      obs=df_te_credit$RESPONSE)
+
+prev.prob <- data.frame(FOREST = pred_rfROC[, 2], obs = df_te_credit$RESPONSE)
+
+# Draw ROC curve
+roc_obj <- roc(prev.prob$obs, prev.prob$FOREST)
+
+# Plot the ROC curve
+par(pty="s")
+plot(roc_obj, main = "ROC Curve", print.auc = TRUE)
+```
+
+:::{style="text-align: justify"}
+We once again plot the ROC curve, as well as the AUC.
+:::
+
+### **3.3.7 Decision tree** 
+
+:::{style="text-align: justify"}
+The second to last model we are fitting is the decision tree. In order to find the optimal model, we want to understand which complexity parameter is the best.
+:::
+
+```{r}
+#Decision tree
+
+hp_dt <- data.frame(cp = c(0.01, 0.02, 0.03))
+
+set.seed(2547) 
+
+fit_dt <- train(
+  form = RESPONSE ~ .,
+  data = df_tr_subs,
+  trControl = train_control,
+  tuneGrid = hp_dt,
+  method = "rpart",
+  metric = metric
+)
+
+```
+
+```{r}
+#Optimal number of trees 
+CP <- fit_dt$finalModel$cp
+CP
+```
+
+:::{style="text-align: justify"}
+The optimal complexity parameter is chosen based on the elbow point in the relative error curve. It is the value where the decrease in relative error becomes less substantial compared to previous levels of complexity.
+The optimal complexity parameter is 0.02.
+:::
+
+```{r}
+fancyRpartPlot(fit_dt$finalModel, main = "Regression tree", caption = NULL)
+```
+
+:::{style="text-align: justify"}
+By plotting the decision tree, we observe that the first split is done with the checking account variable at level 3. It divides our dataset in two parts. If checking account 3 is equal 1 meaning the customer does not have a checking account, you end up with 33% of your data and you have a 77% chance of predicting a good credit rating. On the other hand if the applicant is not in the third category of the checking account, which occurs for 67% of the data, you go the other direction. 
+
+The most interesting situation occurs when the applicant is not in the third category of checking account, it demands a duration that is above -0.76 (of course the duration is scaled, so it is not easy to interpret but keeping in mind that scaled values vary from -2 to 2, we can get an idea that it involves Durations that are almost at least equal to the average of all the duration in our dataset) and finally is not in the saving account category 4, as this concerns 49% of all observations and this group has a 73% chance of having a negative credit rating. 
+:::
+
+```{r}
+pred_dt <- predict(fit_dt, newdata = df_te_credit)
+cm_dt <- confusionMatrix(data = pred_dt, reference = df_te_credit$RESPONSE)
+draw_confusion_matrix(cm_dt)
+
+```
+
+:::{style="text-align: justify"}
+The accuracy of the model is 0.665 and its specificity 0.647. As many other models display higher performance measures, we can say that the decision tree is not part of our best models
+:::
+
+#### **3.3.7.1 ROC metric **
+
+```{r}
+#ROC CURVE Decision tree 
+
+
+pred_dtROC<- predict(fit_dt, newdata = df_te_credit,type ="prob")
+
+
+prev.prob<-data.frame(TREE =pred_dtROC[,2] , 
+                      obs=df_te_credit$RESPONSE)
+
+prev.prob <- data.frame(TREE = pred_dtROC[, 2], obs = df_te_credit$RESPONSE)
+
+# Draw ROC curve
+roc_obj <- roc(prev.prob$obs, prev.prob$TREE)
+
+# Plot the ROC curve
+par(pty="s")
+plot(roc_obj, main = "ROC Curve", print.auc = TRUE)
+```
+
+:::{style="text-align: justify"}
+Our area under the curve is 0.677 and is once again not among the highest values, indicating again that the decision tree is not our best performing model.
+:::
+
+### **3.3.8 XGBoosting ** 
+
+:::{style="text-align: justify"}
+We have decided to fit an optimized version of the gradient boosting algorithm.Regarding the hyperparameters of this model we have set the learning rate to 0.1, the maximum depth of each tree to 5 and the minimum sum of instance weights in  a child node to 1.
+::: 
+
+```{r,results='hide'}
+xgb_train_data <- model.matrix(RESPONSE ~ ., data = df_tr_subs)[,-28]
+xgb_train_label <- as.numeric(df_tr_subs$RESPONSE) - 1
+xgb_train_dmatrix <- xgb.DMatrix(data = xgb_train_data, label = xgb_train_label)
+
+xgb_test_data <- model.matrix(RESPONSE ~ ., data = df_te_credit)[,-28]
+xgb_test_label <- as.numeric(df_te_credit$RESPONSE) - 1
+xgb_test_dmatrix <- xgb.DMatrix(data = xgb_test_data, label = xgb_test_label)
+
+set.seed(42)
+
+params <- list(
+  objective = "reg:squarederror",
+  eta = 0.1,
+  max_depth = 5,
+  min_child_weight = 1,
+  subsample = 1,
+  colsample_bytree = 1
+)
+
+fit_xgb <- xgb.train(params, xgb_train_dmatrix , nrounds = 1000)
+
+```
+
+```{r}
+predicted_probs <- predict(fit_xgb, xgb_test_dmatrix)
+predicted_classes <- ifelse(predicted_probs >= 0.5, 1, 0)
+xgb_test_label <- as.factor(xgb_test_label)  # Convert the labels to factors
+
+# Confusion matrix
+cm_xgb <- confusionMatrix(data = as.factor(predicted_classes), reference = xgb_test_label)
+draw_confusion_matrix(cm_xgb)
+
+```
+
+:::{style="text-align: justify"}
+Fitting the XGBoosting gives an accuracy of 0.743 and a specificity of 0.769. 
+::: 
+
+#### **3.3.8.1 ROC metric **
+
+```{r}
+roc <- roc(response = xgb_test_label, predictor = predicted_probs)
+
+par(pty="s")
+plot(roc, main = "ROC Curve", print.auc = TRUE)
+```
+
+:::{style="text-align: justify"}
+The area under the curve is equal to 0.775.
+:::
+
+## **3.4 Model evaluation**
+
+```{r}
+Models <- c("Logistic_reg","KNN","SVM","NN","LDA","RF","DT","XGBoost")
+Accuracy <- c("0.726","0.686","0.704","0.726","0.739","0.699","0.655","0.735")
+Specificity <-c("0.75","0.673","0.699","0.763","0.756","0.679","0.647","0.763")
+AUC <- c("0.775","0.730","0.795","0.745","0.803","0.779","0.677","0.775")
+
+data.frame(Models,Accuracy,Specificity,AUC) %>% 
+  kbl(align = "l") %>% 
+  kable_classic(c("hover", "condense"))
+```
+
+:::{style="text-align: justify"}
+In order to evaluate our models and conclude on the best performing ones, we have created a table that summarizes the key metrics of all our models. Indeed it includes values about the accuracy, specificity and the AUC, which will help us gather as many information as possible and to determine the best models.
+
+Our goal is to : 
+
+- Minimize the number of false positive : granting credits to risky clients 
+- Improve the power performance of models
+- Improve the distinction of our two response variables versus a random model (AUC = 0.5)
+
+Finally to determine which model were performing the best, we have chosen the models that presented the best balance between the three metrics. It is important to remember that values are very close for our models and depending on the training set we are using, results could differ. 
+
+Based on our analysis, the best models are : 
+
+-Logistic Regression 
+-Linear discriminant analysis 
+-XGBoosting 
+
+Please note that we decided to compare our models with AUC and not the ROC metric as we think it is a more effective way to compare them as a number is more interpretable than a curve.
+
+:::
+
+# **4.Evaluation**
+ 
+:::{style="text-align: justify"}
+In the evaluation phase of our project, we focus on assessing the variable importance of the above models. Understanding which features contribute the most to the model's predictions is crucial for interpreting the model's behavior and identifying key factors that influence the target variable. 
+:::
+
+## **4.1 Variable importance**
+
+:::{style="text-align: justify"}
+To assess the importance of each feature in the classification models, we performed a variable importance analysis using the `DALEX()` library.
+We created explainers for each model to gain insights into the feature importance. Let's explore the feature importance results obtained from each model explainer.
+:::
+
+```{r,results='hide'}
+
+
+df_tr_subs <- transform(df_tr_subs,RESPONSE=as.numeric(as.factor(df_tr_subs$RESPONSE))-1)
+
+
+explainer_glm <- DALEX::explain(model = fit_glm_AIC, 
+                                data = select(df_tr_subs,-RESPONSE), 
+                                y = df_tr_subs$RESPONSE,
+                                label = "Logistic Regression")
+
+
+explainer_knn <- DALEX::explain(model = fit_knn_tuned, 
+                                data = select(df_tr_subs,-RESPONSE), 
+                                y = df_tr_subs$RESPONSE,
+                                label = "KNN")
+
+
+explainer_svm <- DALEX::explain(model = fit_svm, 
+                                data = select(df_tr_subs,-RESPONSE), 
+                                y = df_tr_subs$RESPONSE,
+                                label = "Support vector machine")
+
+explainer_nn <- DALEX::explain(model = fit_nn, 
+                                data = select(df_tr_subs,-RESPONSE), 
+                                y = df_tr_subs$RESPONSE,
+                                label = "Neural networks")
+
+explainer_lda <- DALEX::explain(model = fit_lda, 
+                                data = select(df_tr_subs,-RESPONSE), 
+                                y = df_tr_subs$RESPONSE,
+                                label = "Linear Discriminant")
+
+
+explainer_rf <- DALEX::explain(model = fit_rf, 
+                                data = select(df_tr_subs,-RESPONSE), 
+                                y = df_tr_subs$RESPONSE,
+                                label = "Random Forest")
+
+explainer_dt <- DALEX::explain(model = fit_dt, 
+                                data = select(df_tr_subs,-RESPONSE), 
+                                y = df_tr_subs$RESPONSE,
+                                label = "Decision tree")
+```
+
+```{r}
+
+calculate_importance <- function(your_model_explainer, n_permutations = 10) {
+  imp <- model_parts(explainer = your_model_explainer,
+                     B = n_permutations,
+                     type = "difference",
+                     N = NULL)
+                    
+  return(imp)
+}
+
+importance_glm  <- calculate_importance(explainer_glm)
+importance_knn  <- calculate_importance(explainer_knn)
+importance_svm  <- calculate_importance(explainer_svm)
+importance_nn   <- calculate_importance(explainer_nn)
+importance_lda  <- calculate_importance(explainer_lda)
+importance_rf   <- calculate_importance(explainer_rf)
+importance_dt   <- calculate_importance(explainer_dt)
+```
+
+### **4.1.1 Logistic Regression Variable Importance**
+
+```{r}
+plot(importance_glm,show_boxplots = FALSE)
+```
+
+:::{style="text-align: justify"}
+
+The variable importance analysis for Logistic Regression revealed the following key features:
+
+**CHK_ACCT:** This feature has a high importance, indicates that the status of the checking account plays a crucial role in the model's predictions. 
+
+**DURATION_SCALED:** The duration of the credit (scaled) is another important feature. It implies that the length of time for which credit is extended can have a substantial impact on the model's predictions.
+
+**HISTORY:** The history feature demonstrates notable importance. It suggests that a borrower's credit history, categorized into different levels, significantly influences the model's predictions.
+
+**NEW_CAR:** The feature has a moderate importance,indicates that it contributes to the model's predictions, although to a lesser extent. It suggests that the purpose of the loan, specifically for purchasing a new car, has some influence on the model's predictions.
+
+**SAV_ACCT:** The feature has a moderate importance value of 0.025. It suggests that the status of the savings account is considered with a relatively smaller impact.
+
+The remaining features have not been assigned specific importance values.
+::: 
+
+### **4.1.2 K-NN Variable Importance**
+
+```{r}
+plot(importance_knn,show_boxplots = FALSE)
+```
+
+:::{style="text-align: justify"}
+
+For KNN, the feature importance values are as follows:
+
+**CHK_ACCT** (Checking Account): The status of the checking account demonstrates high importance. 
+
+**DURATION SCALED:** The duration of the credit (scaled) also has a relatively high importance, indicating that the scaled duration of the credit plays a significant role also in the KNN model's predictions. 
+
+On the other hand **INSTALL_RATE**,**SAV_ACCT**,**AGE_SCALED** have some influence on the model's predictions but to a lower extent.
+
+The remaining features have not been assigned specific importance values.
+
+:::
+
+### **4.1.3 Support Vector Machine Variable Importance**
+
+```{r}
+plot(importance_svm,show_boxplots = FALSE)
+```
+
+:::{style="text-align: justify"}
+
+For SVM, the feature importance values are as follows:
+
+**CHK_ACCT** (Checking Account): This feature again has a high importance, indicating that the status of the checking account plays a crucial role in the model's predictions. 
+
+**DURATION_SCALED - HISTORY - EMPLOYMENT:** Credit history, duration of the credit (scaled) and the status of the savings account are identified as a features of moderate importance.
+
+The remaining features have not been assigned specific importance values.
+
+:::
+
+### **4.1.4 Neural Networks Variable Importance**
+
+```{r}
+plot(importance_nn,show_boxplots = FALSE)
+```
+
+:::{style="text-align: justify"}
+
+For Neural Networks (NN), the feature importance values are as follows:
+
+**CHK_ACCT** (Checking Account): This feature has a high importance also for Neural Networks model, indicating that the status of the checking account plays a crucial role in the model's predictions. 
+
+In addition to the Checking Account, the following features show moderate importance:
+
+**HISTORY - AGE_SCALED:** The credit history of the borrower and age are considered to have a moderate impact on the NN model's predictions. 
+
+The remaining features have not been assigned specific importance values.
+
+:::
+
+### **4.1.5 Linear Discriminant Analysis Importance**
+
+```{r}
+plot(importance_lda,show_boxplots = FALSE)
+```
+
+:::{style="text-align: justify"}
+
+For Linear Discriminant Analysis (LDA), the feature importance values are as follows:
+
+**CHK_ACCT** (Checking Account): This feature has a high importance also for Linear Discriminant Analysis, indicating that the status of the checking account plays a crucial role in the model's predictions.
+
+On the other hand **DURATION_SCALED**  is identified as a feature of moderate importance.
+
+The remaining features have not been assigned specific importance values.
+
+:::
+### **4.1.6 Random Forest Importance**
+
+
+
+```{r}
+
+form <- formula(RESPONSE ~ .)
+RF <- randomForest(formula=form, 
+                          data=df_tr_subs, 
+                          ntree=500, mtry=4, 
+                          importance=TRUE, 
+                          localImp=TRUE,
+                          na.action=na.roughfix,
+                          replace=FALSE)
+```
+
+
+:::{style="text-align: justify"}
+
+Random Forest Importance is an other method that combines multiple decision trees to provide variable importance. It utilizes a variety of techniques, including MeanDecreasingGini and MeanDecreaseAccuracy, to calculate variable importance measures. The output includes two different plots: one based on MeanDecreasingGini and the other based on MeanDecreaseAccuracy.
+
+MeanDecreasingGini : measure of impurity or inequality used in decision tree algorithms to evaluate the quality of a split , how much a variable is able to  seperate at each node the observation into two groups ( the higher the better).
+
+MeanDecreaseAccuracy : Permuting the variables values over the observation and I will observe if the response variable changes - if no change with or without permutation then the variable is not important 
+The higher the more important (we take the absolute value).
+
+:::
+
+```{r}
+#Meta analysis
+varImpPlot(RF)
+```
+
+```{r}
+plot(importance_rf,show_boxplots = FALSE)
+```
+
+:::{style="text-align: justify"}
+For Random Forest the feature importance values are as follows:
+
+**CHK_ACCT** (Checking Account): This feature has a high importance also for Random Forest, indicating that the status of the checking account plays a crucial role in the model's predictions.
+
+In addition to the Checking Account, the following features show relatively lower importance in the Random Forest model :
+
+**EMPLOYMENT -DURATION_SCALED - HISTORY- AMOUNT_SCALED:** The  employment status,credit history of the borrower, duration and the purpose of the loan are considered to have a lower impact on the Random Forest model's predictions .
+:::
+
+### **4.1.7 Decision Tree Importance**
+
+```{r}
+plot(importance_dt,show_boxplots = FALSE)
+```
+
+:::{style="text-align: justify"}
+For Decision tree the feature importance values are as follows:
+
+Based on the graph, it appears that **CHK_ACCT** (Checking Account), **SAV_ACCT** (Saving Account), and **DURATION_SCALED** are identified as the three most important features in the decision tree model.
+:::
+
+### **4.1.8 Boruta algorithm**
+
+```{r,results='hide'}
+set.seed(111)
+fit_boruta <- Boruta(RESPONSE~., data = credit_data, doTrace = 2)
+print(fit_boruta) 
+```
+
+:::{style="text-align: justify"}
+The Boruta algorithm is also a feature selection method that helps identify the most relevant variables in a dataset. It compares the importance of each feature with that of randomly generated shuffled features.
+
+To determine the significance of a variable's importance, Boruta calculates Z-scores, which measure how much a data point deviates from the mean. If the Z-score of a variable's actual value is higher than the Z-score of the shuffled value, it means the variable is important and potentially useful for predicting the target variable.
+:::
+
+```{r,results='hide'}
+boruta_result <- attStats(fit_boruta)
+print(boruta_result)
+```
+
+:::{style="text-align: justify"}
+
+After applying Boruta to a dataset, it categorizes the features into three groups: Confirmed, Tentative, and Rejected.
+
+Confirmed: Features marked as "Confirmed" are considered important by the Boruta algorithm. The importance of these features is significantly higher than that of the shadow features. These features are likely to be strong predictors of the target variable.
+
+Tentative: Features marked as "Tentative" have not yet been definitively determined as important or unimportant. Their importance is not significantly different from that of the shadow features. These features require further investigation or validation to make a conclusive decision about their importance.
+
+Rejected: Features marked as "Rejected" are considered unimportant by the Boruta algorithm. The importance of these features is significantly lower than that of the shadow features. They are unlikely to provide useful information for predicting the target variable.
+
+
+According to the output, the most important variables identified by the Boruta algorithm in the dataset are:
+
+CHK_ACCT 
+HISTORY 
+NEW_CAR 
+USED_CAR 
+SAV_ACCT 
+EMPLOYMENT 
+INSTALL_RATE 
+GUARANTOR
+REAL_ESTATE 
+PROP_UNKN_NON
+OTHER_INSTALL
+OWN_RES 
+AGED_SCALED
+DURATION_SCALED
+
+:::
+
+### **4.1.9 Variable importance conclusion**
+
+:::{style="text-align: justify"}
+
+After applying three methods for the variable importance, we have identified the following features as consistently important indicators of credit rating:
+
+The "Checking Account" **(CHK_ACCT)** feature consistently emerges as a significant variable in multiple models, including boruta and random forest feature importance. . It provides valuable information about the applicant's checking account status and their ability to handle financial obligations, which is crucial in assessing credit risk. A positive account balance suggests a lower credit risk.
+
+Duration **(DURATION_SCALED)**: The duration of credit in months was consistently identified as an important factor. It helps evaluate the applicant's commitment to repaying the loan and their ability to handle long-term financial obligations.
+
+**Credit History**: The applicant's credit history plays a vital role in predicting credit risk. It includes information about their past credit history and debts. A positive credit history with timely repayments indicates a good credit response.
+
+Savings Account **(SAV_ACCT)**: In some models, the presence of a savings account was considered important. A high average balance in a savings account suggests a better financial standing and the means to handle repayments, leading to a lower credit risk.
+
+**EMPLOYMENT**: Employment information was identified as significant in certain models. It provides insight into the applicant's income stability and job security, which are important factors in evaluating their capacity to generate a steady income and meet financial obligations. Stable employment reduces credit risk.
+
+These features consistently appear as significant indicators of credit risk.
+
+:::
+
+## **4.2 Best models diagnostic **
+
+:::{style="text-align: justify"}
+
+In this part, we are going to break down the five most important features based on Logistic Regression and Linear Discriminant Analysis, which are our best models based on accuracy.
+
+:::
+
+```{r}
+
+glm_variables <- model_profile(explainer_glm, type = "partial", variables = c("CHK_ACCT", "HISTORY", "SAV_ACCT", "EMPLOYMENT"))
+
+plot(glm_variables, variables = c("CHK_ACCT", "HISTORY", "SAV_ACCT", "EMPLOYMENT")) + ggtitle("Partial dependence profile for Logistic Regression ", "")
+```
+
+```{r}
+lda_variables <- model_profile(explainer_lda, type = "partial", variables = c("CHK_ACCT", "HISTORY", "SAV_ACCT", "EMPLOYMENT"))
+
+plot(lda_variables, variables = c("CHK_ACCT", "HISTORY", "SAV_ACCT", "EMPLOYMENT")) + ggtitle("Partial dependence profile for LDA ", "")
+```
+
+:::{style="text-align: justify"}
+
+After analyzing the four levels of **CHK_ACCT**, we found that clients without a checking account have an improved probability of having a good credit rating, which is surprising.
+Regarding the **EMPLOYMENT**, the probability of a good credit rating increases for customers employed between 4 and 7 years.
+When considering credit history, the probability for a good credit rating is lower for certain categories, while it is higher for critical accounts, which once again is maybe unexpected.
+Similar patterns emerge for the **SAV_ACCT** variable, where the chance of  a good credit rating is higher when a client has more than 1000 DM in his bank account.
+We observe the same trends when analyzing the LDA model and considering the importance of categorical variables.
+
+:::
+
+# **5.Deployment**
+
+:::{style="text-align: justify"}
+To conclude and finalize our report, we want to summarize our results and findings. The first objective was to try as many models as possible by training them with cross validation and testing them on new data. To have a good idea about the performance of our different models, we computed many different metrics such as the accuracy, specificity, and area under the curve. We think that the more information we gather, the more accurate our conclusions will be. 
+
+We then compared those values and concluded that the three models that showed the best combination of metrics were the Linear discriminant analysis, the XG boosting and the logistic regression model. However, it is really hard to conclude with 100% confidence as the metrics were calculated with a given training test and if we change it, the values could change, and our conclusions could differ. 
+
+After that, we moved on the variable importance part. Once again, we focused on trying as many methods and algorithms as possible. We therefore used a Boruta algorithm, the GINI index and the variable importance with the Dalex explainer for every model. After analyzing the results, it is clear that the CHK_ACCT variable is the most significant variable, however for the other variables it is harder to conclude as our different methods do not give the exact same results. Additionally, there is no threshold to classify whether a variable is important or not.
+
+Generally, we see that : 
+
+- CHK_ACCT : amount of Deutsche Mark, an applicant has on his account
+- DURATION : duration of the credit the applicant asks for 
+- AMOUNT: the amount of money an applicant demands for his credit
+
+
+are the variables that seems to be the most significant.Naturally, this does not mean that all the other variables are useless but if we had to only choose three, we would choose those ones.
+
+Finally, we wanted to go deeper in our analysis as saying that a variable is important without saying why it is, is not that relevant. We therefore used a partial dependence profile for our most important variables in order to check which levels gave the most information about our prediction. We found surprising results such as that having no checking account (category 3 of CHK_ACCT) seems to improve the probability of predicting a good predict risk. This is hard to understand and pretty unexpected but was already confirmed in the exploratory data analysis when we check the distribution of our response variable per categorical variable.
+
+To conclude, we shall not forget that our results are based on the data provided aswell as our personal analysis and that results could evolve if we add additional data for example. The conclusions about the best models and variables are also dependent on many factors and are only based on our analysis. Therefore although we think our results are accurate it should not be taken as perfect.
+:::
